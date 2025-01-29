@@ -1,10 +1,14 @@
 local offset = 0
 local file = ''
+---@type function
 local extract_dict
+local tab = '  '
 
 local function trim(str) return str:match("^%s*(.-)%s*$") end
 
-local function is_array(tbl) return tbl[1] ~= nil end
+local function is_array(tbl)
+  return type(tbl) == 'table' and tbl[1] ~= nil
+end
 
 ---@return string|nil
 local function get_char()
@@ -31,7 +35,7 @@ function extract_key()
   while 1 do
     local c = get_char()
     assert(c, "extract key error")
-    if c:match('[a-zA-Z_]+') then
+    if c:match('[a-zA-Z0-9_]+') then
       result = result .. c
     else
       offset = offset - 1
@@ -40,7 +44,7 @@ function extract_key()
   end
 end
 
----@return string
+---@return string|number|any
 function extract_scalar()
   skip_spaces()
   local result = ''
@@ -73,13 +77,14 @@ function extract_scalar()
       if c ~= " " and c ~= "\t" and c ~= nil then
         result = result .. c
       else
+        if result:match("^[0-9\\.]+$") then return tonumber(result) end
         return result
       end
     end
   end
 end
 
----@return string|table
+---@return string|table|number
 function extract_value()
   skip_spaces()
   local c = get_char()
@@ -114,12 +119,57 @@ extract_dict = function()
 end
 
 -----------------------------------
+--Convert string(in defold file format) to table
 ---@param text string
+---@return table
 local function parse(text)
   offset = 0
   file = text
   return extract_dict()
 end
+
+--Convert lua table to string(in defold file format)
+---@param level number
+---@param tbl table
+---@return string
+local function compile(tbl, level)
+  local result = ''
+  local keys = {}
+  for k in pairs(tbl) do table.insert(keys, k) end
+  table.sort(keys)
+
+  for _, key in ipairs(keys) do
+    if is_array(tbl[key]) then
+      for _, v in ipairs(tbl[key]) do
+        result = result .. tab:rep(level) .. key .. " {\n"
+        result = result .. tab:rep(level) .. compile(v, level + 1)
+        result = result .. tab:rep(level) .. "}\n"
+      end
+    else
+      local value
+      if type(tbl[key]) == 'string' then
+        if tbl[key]:upper() ~= tbl[key] then
+          value = '"' .. tbl[key] .. '"'
+        else
+          value = tbl[key]
+        end
+      elseif type(tbl[key]) == 'table' then
+        print("---")
+        dump(tbl[key])
+        print("---")
+        os.exit()
+      end
+      result = result .. tab:rep(level) .. key .. ': ' .. value .. "\n"
+    end
+  end
+  return result
+end
+
+compile_string = function(tbl)
+  return compile(tbl, 0)
+end
+
+--Parse defold file and return table
 ---@meta
 ---@param path string
 local function parse_file(path)
@@ -130,7 +180,16 @@ local function parse_file(path)
   return parse(table.concat(rows, ' '))
 end
 
+local function compile_and_save(path, tbl)
+  local f = io.open(path, 'w')
+  assert(f, ("file write error to %s"):format(path))
+  f:write(compile(tbl, 0))
+  f:close()
+end
+
 return {
-  parse_file = parse_file,
-  parse = parse
+  parse = parse,
+  compile = compile_string,
+  save = compile_and_save,
+  load = parse_file,
 }
