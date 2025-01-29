@@ -4,6 +4,37 @@ local file = ''
 local extract_dict
 local tab = '  '
 
+local function sorted_table()
+  local keys = {}
+  local data = {}
+
+  local mt = {
+    __index = function(tbl, k)
+      if data[k] ~= nil then
+        return data[k]
+      end
+      return nil
+    end,
+    __newindex = function(_, k, v)
+      if data[k] == nil then
+        table.insert(keys, k)
+      end
+      data[k] = v
+    end,
+    __pairs = function(tbl)
+      local offset = 0
+      return function(_)
+        offset = offset + 1
+        local key = keys[offset]
+        local value = data[key]
+
+        return key, value
+      end, tbl, nil
+    end
+  }
+  return setmetatable({}, mt)
+end
+
 local function trim(str) return str:match("^%s*(.-)%s*$") end
 
 local function is_array(tbl)
@@ -188,6 +219,7 @@ local function compile_and_save(path, tbl)
 end
 
 return {
+  table = sorted_table,
   parse = parse,
   compile = compile_string,
   save = compile_and_save,
