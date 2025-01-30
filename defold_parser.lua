@@ -2,11 +2,15 @@
 local extract_dict
 ---@type function
 local parse
+---@type function
+local compile
 
 local tab = '  '
 
 ---@return RawDataContainer
+---@param data string
 local function make_container(data)
+  data = data:gsub("\n", " ")
   ---@class RawDataContainer
   local obj = {
     file = data,
@@ -46,26 +50,41 @@ local function split_string(str, delimiter)
 end
 
 local function decode_text_field(str)
-  -- Replace double-escaped quote with quote.
-  -- str = string.gsub(str, [[\\\"]], [["]])
-  str = string.gsub(str, [[\"]], [["]])
-  str = string.gsub(str, "\\n", "\n")
-  -- Replace escaped backslash with backslash (like in "\\n").
+  str = string.gsub(str, [[\\n]], [[__N]])
+  str = string.gsub(str, [[\n""]], "\n")
+  str = string.gsub(str, [[__N"]], "\\\\n\"\n")
   str = string.gsub(str, [[\\]], [[\]])
+  str = string.gsub(str, [[\"]], [["]])
   return str
 end
 
 local function encode_text_field(str, level)
   local result = ''
   local parts = split_string(str, "\n")
-  for i, v in ipairs(parts) do
-    v = string.gsub(v, [["]], [[\"]])
-    -- v = string.gsub(v, [[\]], [[\\]])
-    local newline = nil
-    if i < #parts then newline = "\\n" end
-    result = result .. string.format('"%s%s"', v, newline or '')
-    if newline then result = result .. "\n" end
+
+  for i, line in ipairs(parts) do
+    if string.match(line, '\\n"$') ~= nil then
+      line = string.gsub(line, '^"', '')
+      line = string.gsub(line, '"$', '')
+      line = string.gsub(line, [[\]], [[\\]])
+      line = string.gsub(line, [["]], [[\"]])
+      result = result .. '"' .. line .. '"' .. "\n"
+    else
+      line = string.gsub(line, [["]], [[\"]])
+      local newline = nil
+      if i < #parts then
+        newline = [[\n]]
+      end
+      result = result .. string.format('"%s%s"', line, newline or '')
+      if newline then
+        result = result .. "\n"
+      end
+    end
   end
+
+  --- magic replace (hack) ----
+  result = result:gsub([["\"\"]], [["\"]])
+  -----------------------------
   return result
 end
 
@@ -131,20 +150,18 @@ function extract_scalar(container)
   local result = ''
   local c = container:get_char()
   if c == '"' then -- parse text (oneline/multiline)
-    local skip_quote = false
+    -- container:back()
+    -- local skip_quote = true
     while 1 do
       c = container:get_char()
-      if c == nil then return decode_text_field(result) end
+      -- if c == nil then return decode_text_field(result) end
       if c == '"' and not skip_quote then
         container:skip_spaces()
-        if container:get_char() == '"' then
-          container:back()
-          result = result .. extract_scalar(container)
-          return decode_text_field(result)
-        else
+        if container:get_char() ~= '"' then
           container:back()
           return decode_text_field(result)
         end
+        result = result .. '""'
       else
         skip_quote = false
         if c == "\\" then skip_quote = true end
@@ -183,11 +200,16 @@ extract_dict = function(container)
   container:skip_spaces()
   local result = sorted_table()
   while 1 do
+    if container:get_char() == nil then
+      return {}
+    end
+    container:back()
     local key = extract_key(container)
     local value = extract_value(container)
 
     if key == 'data' then
-      print("-----", value)
+      local container_2 = make_container(tostring(value))
+      value = extract_dict(container_2)
     end
     if result[key] ~= nil then
       if not is_array(result[key]) then
@@ -219,7 +241,7 @@ end
 ---@param level number
 ---@param tbl table
 ---@return string
-local function compile(tbl, level)
+compile = function(tbl, level)
   local result = ''
 
   for key, value in pairs(tbl) do
@@ -231,9 +253,19 @@ local function compile(tbl, level)
       end
     else
       if type(value) == 'table' then
-        result = result .. tab:rep(level) .. key .. " {\n"
-        result = result .. compile(value, level + 1)
-        result = result .. tab:rep(level) .. "}\n"
+        if key == "data" then
+          result = result .. tab:rep(level) .. key .. ": "
+          local d = encode_text_field(compile(value, 0), level)
+          -- magic replace (hack) --
+          d = d:gsub("\n", "\n" .. tab:rep(level))
+          d = d:gsub([[  "  \"]], [[  "]])
+          --------------------------
+          result = result .. d .. "\n"
+        else
+          result = result .. tab:rep(level) .. key .. " {\n"
+          result = result .. compile(value, level + 1)
+          result = result .. tab:rep(level) .. "}\n"
+        end
       else
         if type(value) == 'string' then
           if value:upper() ~= value then -- if not const
@@ -244,7 +276,6 @@ local function compile(tbl, level)
         elseif type(value) == 'boolean' then
           value = tostring(value)
         end
-        -- print(key, level)
         result = result .. tab:rep(level) .. key .. ': ' .. value .. "\n"
       end
     end
@@ -264,8 +295,7 @@ local function load(path)
   local rows = {}
   assert(f, ("read file error: %s"):format(path))
   for v in f:lines() do if v then table.insert(rows, trim(v)) end end
-
-  local c = make_container(table.concat(rows, ' '))
+  local c = make_container(table.concat(rows, "\n"))
 
   return parse(c)
 end
