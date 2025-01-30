@@ -1,5 +1,3 @@
-local offset = 0
-local file = ''
 ---@type function
 local extract_dict
 ---@type function
@@ -7,7 +5,39 @@ local parse
 
 local tab = '  '
 
-function split_string(str, delimiter)
+---@return RawDataContainer
+local function make_container(data)
+  ---@class RawDataContainer
+  local obj = {
+    file = data,
+    offset = 0,
+  }
+  ---@return string|nil
+  function obj:get_char()
+    self.offset = self.offset + 1
+    local c = self.file:sub(self.offset, self.offset)
+    if c == '' then return nil end
+    return c
+  end
+
+  function obj:skip_spaces()
+    while 1 do
+      local c = self:get_char()
+      if c ~= ' ' and c ~= '\t' then
+        self.offset = self.offset - 1
+        return
+      end
+    end
+  end
+
+  function obj:back()
+    self.offset = self.offset - 1
+  end
+
+  return obj
+end
+
+local function split_string(str, delimiter)
   local result = {}
   for part in str:gmatch("[^" .. delimiter .. "]*") do
     table.insert(result, part)
@@ -38,23 +68,14 @@ local function encode_text_field(str, level)
   end
   return result
 end
---
--- local function unNewline(str)
---   str = string.gsub(str, "\\n", "")
---   return str
--- end
---
--- local function reNewline(str)
---   str = str .. "\\n"
---   return str
--- end
 
+---@return table
 local function sorted_table()
   local keys = {}
   local data = {}
 
   local mt = {
-    __index = function(tbl, k)
+    __index = function(_, k)
       if data[k] ~= nil then
         return data[k]
       end
@@ -86,58 +107,42 @@ local function is_array(tbl)
   return type(tbl) == 'table' and tbl[1] ~= nil
 end
 
----@return string|nil
-local function get_char()
-  offset = offset + 1
-  local c = file:sub(offset, offset)
-  if c == '' then return nil end
-  return c
-end
-
-local function skip_spaces()
-  while 1 do
-    local c = get_char()
-    if c ~= ' ' and c ~= '\t' then
-      offset = offset - 1
-      return
-    end
-  end
-end
-
+---@param container RawDataContainer
 ---@return string
-function extract_key()
-  skip_spaces()
+function extract_key(container)
+  container:skip_spaces()
   local result = ''
   while 1 do
-    local c = get_char()
+    local c = container:get_char()
     assert(c, "extract key error")
     if c:match('[a-zA-Z0-9_]+') then
       result = result .. c
     else
-      offset = offset - 1
+      container:back()
       return result
     end
   end
 end
 
+---@param container RawDataContainer
 ---@return string|number|any
-function extract_scalar()
-  skip_spaces()
+function extract_scalar(container)
+  container:skip_spaces()
   local result = ''
-  local c = get_char()
+  local c = container:get_char()
   if c == '"' then -- parse text (oneline/multiline)
     local skip_quote = false
     while 1 do
-      c = get_char()
+      c = container:get_char()
       if c == nil then return decode_text_field(result) end
       if c == '"' and not skip_quote then
-        skip_spaces()
-        if get_char() == '"' then
-          offset = offset - 1
-          result = result .. extract_scalar()
+        container:skip_spaces()
+        if container:get_char() == '"' then
+          container:back()
+          result = result .. extract_scalar(container)
           return decode_text_field(result)
         else
-          offset = offset - 1
+          container:back()
           return decode_text_field(result)
         end
       else
@@ -147,9 +152,9 @@ function extract_scalar()
       end
     end
   else -- parse const/number/bool values
-    offset = offset - 1
+    container:back()
     while 1 do
-      c = get_char()
+      c = container:get_char()
       if c ~= " " and c ~= nil then
         result = result .. c
       else
@@ -162,22 +167,24 @@ function extract_scalar()
   end
 end
 
+---@param container RawDataContainer
 ---@return string|table|number
-function extract_value()
-  skip_spaces()
-  local c = get_char()
-  if c == ':' then return extract_scalar() end
-  if c == '{' then return extract_dict() end
+function extract_value(container)
+  container:skip_spaces()
+  local c = container:get_char()
+  if c == ':' then return extract_scalar(container) end
+  if c == '{' then return extract_dict(container) end
   error("file format error")
 end
 
+---@param container RawDataContainer
 ---@return table
-extract_dict = function()
-  skip_spaces()
+extract_dict = function(container)
+  container:skip_spaces()
   local result = sorted_table()
   while 1 do
-    local key = extract_key()
-    local value = extract_value()
+    local key = extract_key(container)
+    local value = extract_value(container)
 
     if key == 'data' then
       print("-----", value)
@@ -190,24 +197,22 @@ extract_dict = function()
     else
       result[key] = value
     end
-    skip_spaces()
-    local c = get_char()
-    if c == "}" or c == nil then
+    container:skip_spaces()
+    local char = container:get_char()
+    if char == "}" or char == nil then
       return result
     else
-      offset = offset - 1
+      container:back()
     end
   end
 end
 
 -----------------------------------
 --Convert string(in defold file format) to table
----@param text string
+---@param c RawDataContainer
 ---@return table
-parse = function(text)
-  offset = 0
-  file = text
-  return extract_dict()
+parse = function(c)
+  return extract_dict(c)
 end
 
 --Convert lua table to string(in defold file format)
@@ -259,8 +264,10 @@ local function load(path)
   local rows = {}
   assert(f, ("read file error: %s"):format(path))
   for v in f:lines() do if v then table.insert(rows, trim(v)) end end
-  -- dump(table.concat(rows, ' '))
-  return parse(table.concat(rows, ' '))
+
+  local c = make_container(table.concat(rows, ' '))
+
+  return parse(c)
 end
 
 local function compile_and_save(path, tbl)
