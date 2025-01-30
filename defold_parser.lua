@@ -2,7 +2,52 @@ local offset = 0
 local file = ''
 ---@type function
 local extract_dict
+---@type function
+local parse
+
 local tab = '  '
+
+function split_string(str, delimiter)
+  local result = {}
+  for part in str:gmatch("[^" .. delimiter .. "]*") do
+    table.insert(result, part)
+  end
+  return result
+end
+
+local function decode_text_field(str)
+  -- Replace double-escaped quote with quote.
+  -- str = string.gsub(str, [[\\\"]], [["]])
+  str = string.gsub(str, [[\"]], [["]])
+  str = string.gsub(str, "\\n", "\n")
+  -- Replace escaped backslash with backslash (like in "\\n").
+  str = string.gsub(str, [[\\]], [[\]])
+  return str
+end
+
+local function encode_text_field(str, level)
+  local result = ''
+  local parts = split_string(str, "\n")
+  for i, v in ipairs(parts) do
+    v = string.gsub(v, [["]], [[\"]])
+    -- v = string.gsub(v, [[\]], [[\\]])
+    local newline = nil
+    if i < #parts then newline = "\\n" end
+    result = result .. string.format('"%s%s"', v, newline or '')
+    if newline then result = result .. "\n" end
+  end
+  return result
+end
+--
+-- local function unNewline(str)
+--   str = string.gsub(str, "\\n", "")
+--   return str
+-- end
+--
+-- local function reNewline(str)
+--   str = str .. "\\n"
+--   return str
+-- end
 
 local function sorted_table()
   local keys = {}
@@ -84,16 +129,16 @@ function extract_scalar()
     local skip_quote = false
     while 1 do
       c = get_char()
-      if c == nil then return result end
+      if c == nil then return decode_text_field(result) end
       if c == '"' and not skip_quote then
         skip_spaces()
         if get_char() == '"' then
           offset = offset - 1
-          result = result .. "\n" .. extract_scalar()
-          return result
+          result = result .. extract_scalar()
+          return decode_text_field(result)
         else
           offset = offset - 1
-          return result
+          return decode_text_field(result)
         end
       else
         skip_quote = false
@@ -101,14 +146,16 @@ function extract_scalar()
         result = result .. c
       end
     end
-  else -- parse oneline value (const/number)
+  else -- parse const/number/bool values
     offset = offset - 1
     while 1 do
       c = get_char()
-      if c ~= " " and c ~= "\t" and c ~= nil then
+      if c ~= " " and c ~= nil then
         result = result .. c
       else
-        if result:match("^[0-9\\.]+$") then return tonumber(result) end
+        if result:match("^[0-9\\.-]+$") then return tonumber(result) end
+        if result == "false" then return false end
+        if result == "true" then return true end
         return result
       end
     end
@@ -127,10 +174,14 @@ end
 ---@return table
 extract_dict = function()
   skip_spaces()
-  local result = {}
+  local result = sorted_table()
   while 1 do
     local key = extract_key()
     local value = extract_value()
+
+    if key == 'data' then
+      print("-----", value)
+    end
     if result[key] ~= nil then
       if not is_array(result[key]) then
         result[key] = { result[key] }
@@ -153,7 +204,7 @@ end
 --Convert string(in defold file format) to table
 ---@param text string
 ---@return table
-local function parse(text)
+parse = function(text)
   offset = 0
   file = text
   return extract_dict()
@@ -165,32 +216,32 @@ end
 ---@return string
 local function compile(tbl, level)
   local result = ''
-  local keys = {}
-  for k in pairs(tbl) do table.insert(keys, k) end
-  table.sort(keys)
 
-  for _, key in ipairs(keys) do
-    if is_array(tbl[key]) then
-      for _, v in ipairs(tbl[key]) do
+  for key, value in pairs(tbl) do
+    if is_array(value) then
+      for _, v in ipairs(value) do
         result = result .. tab:rep(level) .. key .. " {\n"
-        result = result .. tab:rep(level) .. compile(v, level + 1)
+        result = result .. compile(v, level + 1)
         result = result .. tab:rep(level) .. "}\n"
       end
     else
-      local value
-      if type(tbl[key]) == 'string' then
-        if tbl[key]:upper() ~= tbl[key] then
-          value = '"' .. tbl[key] .. '"'
-        else
-          value = tbl[key]
+      if type(value) == 'table' then
+        result = result .. tab:rep(level) .. key .. " {\n"
+        result = result .. compile(value, level + 1)
+        result = result .. tab:rep(level) .. "}\n"
+      else
+        if type(value) == 'string' then
+          if value:upper() ~= value then -- if not const
+            value = encode_text_field(value)
+          end
+        elseif type(value) == 'number' then
+          value = tostring(value)
+        elseif type(value) == 'boolean' then
+          value = tostring(value)
         end
-      elseif type(tbl[key]) == 'table' then
-        print("---")
-        dump(tbl[key])
-        print("---")
-        os.exit()
+        -- print(key, level)
+        result = result .. tab:rep(level) .. key .. ': ' .. value .. "\n"
       end
-      result = result .. tab:rep(level) .. key .. ': ' .. value .. "\n"
     end
   end
   return result
@@ -203,11 +254,12 @@ end
 --Parse defold file and return table
 ---@meta
 ---@param path string
-local function parse_file(path)
+local function load(path)
   local f = io.open(path, 'r')
   local rows = {}
   assert(f, ("read file error: %s"):format(path))
   for v in f:lines() do if v then table.insert(rows, trim(v)) end end
+  -- dump(table.concat(rows, ' '))
   return parse(table.concat(rows, ' '))
 end
 
@@ -223,5 +275,5 @@ return {
   parse = parse,
   compile = compile_string,
   save = compile_and_save,
-  load = parse_file,
+  load = load,
 }
