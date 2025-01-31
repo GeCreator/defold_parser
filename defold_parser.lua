@@ -1,12 +1,12 @@
 ---@type function
 local extract_dict
 ---@type function
-local parse
----@type function
 local compile
 
 local tab = '  '
 
+---Returns a table that is protected from key shuffling.
+---In what order the keys were added, the iteration(ipairs(), pairs()) will be in the same order.
 ---@return table
 local function sorted_table()
   local keys = {}
@@ -236,13 +236,6 @@ extract_dict = function(container)
 end
 
 -----------------------------------
---Convert string(in defold file format) to table
----@param c RawDataContainer
----@return table
-parse = function(c)
-  return extract_dict(c)
-end
-
 --Convert lua table to string(in defold file format)
 ---@param level number
 ---@param tbl table
@@ -296,34 +289,38 @@ compile = function(tbl, level)
   return result
 end
 
-compile_string = function(tbl)
-  return compile(tbl, 0)
-end
-
---Parse defold file and return table
----@meta
----@param path string
-local function load(path)
-  local f = io.open(path, 'r')
-  local rows = {}
-  assert(f, ("read file error: %s"):format(path))
-  for v in f:lines() do if v then table.insert(rows, trim(v)) end end
-  local c = make_container(table.concat(rows, "\n"))
-
-  return parse(c)
-end
-
-local function compile_and_save(path, tbl)
-  local f = io.open(path, 'w')
-  assert(f, ("file write error to %s"):format(path))
-  f:write(compile(tbl, 0))
-  f:close()
-end
-
 return {
   table = sorted_table,
-  parse = parse,
-  compile = compile_string,
-  save = compile_and_save,
-  load = load,
+  --Convert string(in defold file format) to table
+  ---@param str string
+  ---@return table
+  parse = function(str)
+    return extract_dict(str)
+  end,
+  ---Convert table to string(defold file format)
+  ---@param tbl table
+  ---@return string
+  compile = function(tbl)
+    return compile(tbl, 0)
+  end,
+  ---Compile table and save to file
+  ---@param path string
+  ---@param tbl table
+  save = function(path, tbl)
+    local f = io.open(path, 'w')
+    assert(f, ("file write error to %s"):format(path))
+    f:write(compile(tbl, 0))
+    f:close()
+  end,
+  ---Parse defold file and return table
+  ---@meta
+  ---@param path string
+  load = function(path)
+    local f = io.open(path, 'r')
+    local rows = {}
+    assert(f, ("read file error: %s"):format(path))
+    for v in f:lines() do if v then table.insert(rows, trim(v)) end end
+    local c = make_container(table.concat(rows, "\n"))
+    return extract_dict(c)
+  end
 }
