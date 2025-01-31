@@ -247,7 +247,6 @@ compile = function(tbl, level)
   local result = ''
 
   for key, value in pairs(tbl) do
-    -- print("KEY:", key, "VALUE:", value)
     if is_array(value) then
       for _, v in ipairs(value) do
         if type(v) == 'string' then
@@ -265,8 +264,8 @@ compile = function(tbl, level)
         if key == "data" then
           result = result .. tab:rep(level) .. key .. ": "
           local d = encode_text_field(compile(value, 0), level)
-          -- magic replace (hack) --
           d = d:gsub("\n", "\n" .. tab:rep(level))
+          -- magic replace (hack) --
           d = d:gsub([[  "  \"]], [[  "]])
           --------------------------
           result = result .. d .. "\n"
@@ -279,6 +278,7 @@ compile = function(tbl, level)
         if type(value) == 'string' then
           if key == "text" or value:upper() ~= value or value == '' then -- if not const
             value = encode_text_field(value)
+            value = value:gsub("\n", "\n" .. tab:rep(level))
           end
         elseif type(value) == 'number' then
           value = tostring(value)
