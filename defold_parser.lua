@@ -247,9 +247,13 @@ compile = function(tbl, level)
   for key, value in pairs(tbl) do
     if is_array(value) then
       for _, v in ipairs(value) do
-        result = result .. tab:rep(level) .. key .. " {\n"
-        result = result .. compile(v, level + 1)
-        result = result .. tab:rep(level) .. "}\n"
+        if type(v) == 'string' then
+          result = result .. tab:rep(level) .. key .. ': ' .. encode_text_field(v) .. "\n"
+        else
+          result = result .. tab:rep(level) .. key .. " {\n"
+          result = result .. compile(v, level + 1)
+          result = result .. tab:rep(level) .. "}\n"
+        end
       end
     else
       if type(value) == 'table' then
