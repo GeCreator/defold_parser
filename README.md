@@ -45,7 +45,7 @@ atlas.inner_padding = 0.5
 parser.save("assets/atlas.atlas", atlas)
 ```
 #### Example 2: create file
-Looks nicer, but each time the output will be different. The margin, extrude_borders, inner_padding keys will always move to different places. If stability is important to you(for the version control system), then it is better to use parser.table() instead of regular Lua tables
+Looks nicer, but each time the output will be different. The `image`,`sprite_trim_mode`,`margin`, `extrude_borders`, `inner_padding` keys will always move to different places. If stability is important to you(for the version control system), then it is better to use parser.table() instead of regular Lua tables
 ```lua
 local parser = require "defold_parser"
 local atlas = {
@@ -64,6 +64,16 @@ local atlas = {
 parser.save("assets/atlas.atlas", atlas)
 ```
 
+#### Example 3: modify file
+```lua
+local parser = require "defold_parser"
+local atlas = parser.load("assets/atlas.atlas")
+local new_image = parser.table()
+new_image.image = "/path/to/image.png"
+new_image.sprite_trim_mode = "SPRITE_TRIM_MODE_OFF"
+table.insert(atlas.images, new_image)
+parser.save("assets/atlas.atlas", atlas)
+```
 #### Test
 ```lua
 $ lua test.lua
