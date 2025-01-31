@@ -208,8 +208,10 @@ extract_dict = function(container)
     local value = extract_value(container)
 
     if key == 'data' then
-      local container_2 = make_container(tostring(value))
-      value = extract_dict(container_2)
+      if type(value) == 'string' then
+        local container_2 = make_container(tostring(value))
+        value = extract_dict(container_2)
+      end
     end
     if result[key] ~= nil then
       if not is_array(result[key]) then
@@ -245,10 +247,13 @@ compile = function(tbl, level)
   local result = ''
 
   for key, value in pairs(tbl) do
+    -- print("KEY:", key, "VALUE:", value)
     if is_array(value) then
       for _, v in ipairs(value) do
         if type(v) == 'string' then
           result = result .. tab:rep(level) .. key .. ': ' .. encode_text_field(v) .. "\n"
+        elseif type(v) == 'number' then
+          result = result .. tab:rep(level) .. key .. ': ' .. tostring(v) .. "\n"
         else
           result = result .. tab:rep(level) .. key .. " {\n"
           result = result .. compile(v, level + 1)
