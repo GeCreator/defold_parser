@@ -87,6 +87,9 @@ local function split_string(str, delimiter)
   return result
 end
 
+--Unquote string to one level
+---@param str string
+---@return string
 local function decode_text_field(str)
   str = string.gsub(str, [[\\n]], [[__N]])
   str = string.gsub(str, [[\n""]], "\n")
@@ -96,6 +99,9 @@ local function decode_text_field(str)
   return str
 end
 
+---@param str string
+---@param level number
+---@return string
 local function encode_text_field(str, level)
   local result = ''
   local parts = split_string(str, "\n")
