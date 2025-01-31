@@ -24,7 +24,7 @@ parser.save("assets/atlas.atlas", atlas)
 | parser.table()             | table       | create and return table that store key order in key based tables |
 
 #### Example 1: create file
-`It looks terrible, but it's the right way to create new file. As a result, we will always get the same file at the output.`
+It looks terrible, but it's the right way to create new file. As a result, we will always get the same file at the output.
 ```lua
 local parser = require "defold_parser"
 local atlas = parser.table()
@@ -45,7 +45,7 @@ atlas.inner_padding = 0.5
 parser.save("assets/atlas.atlas", atlas)
 ```
 #### Example 2: create file
-`Looks nicer, but each time the output will be different. The margin, extrude_borders, inner_padding keys will always move to different places. If stability is important to you(for the version control system), then it is better to use parser.table() instead of regular lua tables`
+Looks nicer, but each time the output will be different. The margin, extrude_borders, inner_padding keys will always move to different places. If stability is important to you(for the version control system), then it is better to use parser.table() instead of regular Lua tables
 ```lua
 local parser = require "defold_parser"
 local atlas = {
