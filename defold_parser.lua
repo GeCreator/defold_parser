@@ -150,8 +150,6 @@ function extract_scalar(container)
   local result = ''
   local c = container:get_char()
   if c == '"' then -- parse text (oneline/multiline)
-    -- container:back()
-    -- local skip_quote = true
     while 1 do
       c = container:get_char()
       -- if c == nil then return decode_text_field(result) end
