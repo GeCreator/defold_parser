@@ -272,7 +272,7 @@ compile = function(tbl, level)
         end
       else
         if type(value) == 'string' then
-          if value:upper() ~= value or value == '' then -- if not const
+          if key == "text" or value:upper() ~= value or value == '' then -- if not const
             value = encode_text_field(value)
           end
         elseif type(value) == 'number' then
