@@ -100,9 +100,8 @@ local function decode_text_field(str)
 end
 
 ---@param str string
----@param level number
 ---@return string
-local function encode_text_field(str, level)
+local function encode_text_field(str)
   local result = ''
   local parts = split_string(str, "\n")
 
@@ -260,7 +259,7 @@ compile = function(tbl, level)
       if type(value) == 'table' then
         if key == "data" then
           result = result .. tab:rep(level) .. key .. ": "
-          local d = encode_text_field(compile(value, 0), level)
+          local d = encode_text_field(compile(value, 0))
           d = d:gsub("\n", "\n" .. tab:rep(level))
           -- magic replace (hack) --
           d = d:gsub([[  "  \"]], [[  "]])
