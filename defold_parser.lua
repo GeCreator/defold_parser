@@ -294,7 +294,7 @@ return {
   ---@param str string
   ---@return table
   parse = function(str)
-    return extract_dict(str)
+    return extract_dict(make_container(str))
   end,
   ---Convert table to string(defold file format)
   ---@param tbl table
