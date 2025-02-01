@@ -134,7 +134,7 @@ end
 
 ---@param container RawDataContainer
 ---@return string
-function extract_key(container)
+local function extract_key(container)
   container:skip_spaces()
   local result = ''
   while 1 do
@@ -151,7 +151,7 @@ end
 
 ---@param container RawDataContainer
 ---@return string|number|any
-function extract_scalar(container)
+local function extract_scalar(container)
   container:skip_spaces()
   local result = ''
   local c = container:get_char()
@@ -190,7 +190,7 @@ end
 
 ---@param container RawDataContainer
 ---@return string|table|number
-function extract_value(container)
+local function extract_value(container)
   container:skip_spaces()
   local c = container:get_char()
   if c == ':' then return extract_scalar(container) end
