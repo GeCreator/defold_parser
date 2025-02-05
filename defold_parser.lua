@@ -306,7 +306,7 @@ return {
   ---@param path string
   ---@param tbl table
   save = function(path, tbl)
-    local f = io.open(path, 'w')
+    local f = assert(io.open(path, 'w'), "can't write to file")
     assert(f, ("file write error to %s"):format(path))
     f:write(compile(tbl, 0))
     f:close()
@@ -315,7 +315,7 @@ return {
   ---@meta
   ---@param path string
   load = function(path)
-    local f = io.open(path, 'r')
+    local f = assert(io.open(path, 'r'), "can't read file")
     local rows = {}
     assert(f, ("read file error: %s"):format(path))
     for v in f:lines() do if v then table.insert(rows, trim(v)) end end
