@@ -319,6 +319,7 @@ return {
     local rows = {}
     assert(f, ("read file error: %s"):format(path))
     for v in f:lines() do if v then table.insert(rows, trim(v)) end end
+    f:close()
     local c = make_container(table.concat(rows, "\n"))
     return extract_dict(c)
   end
