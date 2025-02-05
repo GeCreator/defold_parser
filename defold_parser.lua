@@ -1,9 +1,21 @@
+local ARRAY_KEYS = { 'embedded_components', 'images', 'components', 'nodes', 'layers', 'instances', 'embedded_instances' }
 ---@type function
 local extract_dict
 ---@type function
 local compile
 
 local tab = '  '
+
+---@param str string
+---@param substrings string[]
+function contains_substring(str, substrings)
+  for _, substring in ipairs(substrings) do
+    if string.find(str, substring) then
+      return true
+    end
+  end
+  return false
+end
 
 ---Returns a table that is protected from key shuffling.
 ---In what order the keys were added, the iteration(ipairs(), pairs()) will be in the same order.
@@ -216,13 +228,18 @@ extract_dict = function(container)
         value = extract_dict(container_2)
       end
     end
-    if result[key] ~= nil then
+    if result[key] then
       if not is_array(result[key]) then
         result[key] = { result[key] }
       end
       table.insert(result[key], value)
     else
-      result[key] = value
+      -- forse cast to array
+      if contains_substring(key, ARRAY_KEYS) then
+        result[key] = { value }
+      else
+        result[key] = value
+      end
     end
     container:skip_spaces()
     local char = container:get_char()

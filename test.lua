@@ -13,6 +13,28 @@ local function test_file(path)
   print((" ✅ Test passed: file %s"):format(path))
 end
 
+local function test_parse_function()
+  local data = parser.parse([[ a : 10 b : true c : CONST d : "text" e { a : -10 } f : 3.14 ]])
+  assert(data.a == 10)
+  assert(data.b == true)
+  assert(data.c == "CONST")
+  assert(data.d == "text")
+  assert(data.e.a == -10)
+  assert(data.f == 3.14)
+end
+
+local function test_that_embedded_components_will_be_casted_to_array()
+  local data = parser.parse([[
+embedded_components {
+  id: "hello"
+  type: "factory"
+  data: "prototype: \"/objects/hello.go\"\n"
+  ""
+}]])
+  assert(data.embedded_components[1])
+end
+
+
 -- DEBUG FUNCTIONS
 -- dump = function(value, level)
 --   local do_print
@@ -58,12 +80,6 @@ test_file("tests/collection_with_label.collection")
 test_file("tests/full_go.go")
 test_file("tests/collision_go.go")
 test_file("tests/gui.gui")
---- test parse function
-local data = parser.parse([[ a : 10 b : true c : CONST d : "text" e { a : -10 } f : 3.14 ]])
-assert(data.a == 10)
-assert(data.b == true)
-assert(data.c == "CONST")
-assert(data.d == "text")
-assert(data.e.a == -10)
-assert(data.f == 3.14)
+test_parse_function()
+test_that_embedded_components_will_be_casted_to_array()
 print(" ✅ All Tests passed ")
