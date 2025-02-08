@@ -289,7 +289,9 @@ compile = function(tbl, level)
         end
       else
         if type(value) == 'string' then
-          if key == "text" or value:upper() ~= value or value == '' then -- if not const
+          if key ~= "text" and value:match('^[A-Z]+[A-Z0-9_]*$') then
+            -- with const do nothing
+          else
             value = encode_text_field(value)
             value = value:gsub("\n", "\n" .. tab:rep(level))
           end
