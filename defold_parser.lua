@@ -215,7 +215,8 @@ extract_dict = function(container)
   container:skip_spaces()
   local result = sorted_table()
   while 1 do
-    if container:get_char() == nil then
+    local c = container:get_char()
+    if c == "}" or c == nil then
       return {}
     end
     container:back()
